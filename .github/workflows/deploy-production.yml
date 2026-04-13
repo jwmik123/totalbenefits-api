@@ -1,0 +1,57 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Code uit de repository halen
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Upload bestanden naar VPS
+      - name: Upload files to VPS
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "."
+          target: "/home/totalbenefits-api/htdocs/api.totalbenefits.nl"
+          exclude: |
+            node_modules/
+            .git/
+
+      # 3️⃣ SSH naar VPS en deploy uitvoeren
+      - name: Run commands on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            # Laad NVM en Node 20
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            nvm use 20
+
+            # Ga naar projectmap
+            cd /home/totalbenefits-api/htdocs/api.totalbenefits.nl
+
+            # Optioneel: schoon node_modules en lockfile
+            rm -rf node_modules package-lock.json
+
+            # Dependencies installeren
+            npm install --legacy-peer-deps
+
+            # PM2 herstarten
+            pm2 startOrRestart ecosystem.config.js
+
+      # 4️⃣ Optioneel: deploy voltooid log
+      - name: Production Deploy Complete
+        run: echo "Deployment to production completed!"
