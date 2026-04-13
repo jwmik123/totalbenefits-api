@@ -12,6 +12,7 @@ const listBenefits = async (req, res) => {
     const status = req.status;
     const theme = req.query.theme;
     const entity = req.query.entity;
+    const legalExtension = req.query.legal_extension === 'true';
 
     let sqlQuery = `
         SELECT 
@@ -43,6 +44,10 @@ const listBenefits = async (req, res) => {
 
     if (Number(status) !== 0) {
         sqlQuery += ` AND ns_benefits.status = ${status}`;
+    }
+
+    if (legalExtension) {
+        sqlQuery += ' AND ns_benefits.legal_extension = true';
     }
 
     try {
