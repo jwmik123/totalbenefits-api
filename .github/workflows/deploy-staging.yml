@@ -49,6 +49,9 @@ jobs:
             # Dependencies installeren
             npm install --legacy-peer-deps
 
+            # Database migraties uitvoeren
+            npx knex migrate:latest --env staging
+
             # PM2 herstarten
             pm2 startOrRestart ecosystem.config.js
 

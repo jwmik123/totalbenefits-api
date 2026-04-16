@@ -1,4 +1,12 @@
 {
+<<<<<<< HEAD
+=======
+  "scripts": {
+    "migrate:staging": "knex migrate:latest --env staging",
+    "migrate:production": "knex migrate:latest --env production",
+    "migrate:make": "knex migrate:make"
+  },
+>>>>>>> staging
   "dependencies": {
     "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
@@ -6,6 +14,10 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
+<<<<<<< HEAD
+=======
+    "knex": "^3.2.9",
+>>>>>>> staging
     "mailersend": "^2.3.0",
     "mime": "^4.1.0",
     "mime-types": "^3.0.2",
