@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "migrate:development": "knex migrate:latest --env development",
     "migrate:staging": "knex migrate:latest --env staging",
     "migrate:production": "knex migrate:latest --env production",
     "migrate:make": "knex migrate:make"
