@@ -142,6 +142,13 @@ const invalidateInsights = async (benefitId) => {
     );
 };
 
+const invalidateCompanyInsights = async (companyId) => {
+    await dbQuery(
+        'UPDATE ns_benefit_benchmark_insights SET expires_at = NOW() WHERE company_id = ?',
+        [companyId]
+    );
+};
+
 const resolveBdBenefitId = async (nsBenefitId) => {
     const results = await dbQuery(
         'SELECT linked_benefit FROM ns_benefits WHERE id = ?',
@@ -162,5 +169,6 @@ module.exports = {
     getInsight,
     saveInsight,
     invalidateInsights,
+    invalidateCompanyInsights,
     resolveBdBenefitId,
 };
