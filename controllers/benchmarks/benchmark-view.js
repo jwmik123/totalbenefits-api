@@ -316,15 +316,8 @@ const regenerateInsight = async (req, res) => {
         const cached = await benchmarkData.getInsight(bdBenefitId, req.administrationId);
         return res.json({ text: cached.insight_text, generated_at: cached.generated_at });
     } catch (err) {
-        console.error(err.response?.data || err.message || err);
-        res.status(500).json({
-            message: 'API call failed',
-            debug: {
-                message: err.message,
-                stack: err.stack,
-                code: err.code,
-            },
-        });
+        console.error(err.response?.data || err.message);
+        res.status(500).json({ message: 'API call failed' });
     }
 };
 
