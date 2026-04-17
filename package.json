@@ -6,6 +6,7 @@
     "migrate:make": "knex migrate:make"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
