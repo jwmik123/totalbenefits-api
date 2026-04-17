@@ -30,7 +30,7 @@ const getClientProfile = async (companyId) => {
         SELECT
             c.id,
             c.name,
-            c.branche,
+            COALESCE(c.branche, cp.branche) AS branche,
             c.subbranche,
             cp.employee_count
         FROM ns_companies c
