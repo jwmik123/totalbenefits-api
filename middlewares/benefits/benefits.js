@@ -222,9 +222,6 @@ const validateBenefitCreation = async (req, res, next) => {
     if (!description) {
         return res.status(403).json({ error: 'Vul een beschrijving in' })
     }
-  	if (!implementation) {
-        return res.status(403).json({ error: 'Vul de implementatie in' })
-    }
   	if (!linked_benefit) {
         return res.status(403).json({ error: 'Koppel aan een arbeidsvoorwaarde' })
     }

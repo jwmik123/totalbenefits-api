@@ -1,5 +1,6 @@
 const { dbQuery } = require('../../helpers/helper');
 const { get } = require('../../routes/auth');
+const { invalidateCompanyInsights } = require('../../services/benchmark-data');
 
 const listCompanies = async (req, res) => {
     const userId = req.user.id;
@@ -73,6 +74,7 @@ const updateCompany = async (req, res) => {
     console.log(values);
     try {
         const result = await dbQuery(sqlQuery, values);
+        await invalidateCompanyInsights(id);
         return res.json({ id: result.id, name, logo, thumbnail, branche, subbranche });
     } catch (err) {
         console.error(err);
@@ -222,8 +224,9 @@ const saveCompanyProfile = async (req, res) => {
     const values = [address, founding_year, branche, JSON.stringify(locations), JSON.stringify(entities), works_council, contact, JSON.stringify(caos), outside_cao, JSON.stringify(communication_channels), employee_count, average_age, JSON.stringify(employee_groups), percentage_fulltime, percentage_permanent_contracts, flexible_contracts, inflow_fte, outflow_fte, benefits_budget, total_payroll, recruitment_costs, hr_channel, JSON.stringify(languages), openness, communication_difficulty, communication_questions, communication_share, JSON.stringify(strategy_core_values), JSON.stringify(strategy_leading_values), JSON.stringify(sdgs), friction, recruitment_problems, engagement, kpi_process, kpi_absence, id];
     try {
         const result = await dbQuery(sqlQuery, values);
-        return res.json({ 
-            message: 'Bedrijfsprofiel is opgeslagen', 
+        await invalidateCompanyInsights(id);
+        return res.json({
+            message: 'Bedrijfsprofiel is opgeslagen',
             data: {
                 id: result.id, 
                 address,
