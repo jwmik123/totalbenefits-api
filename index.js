@@ -24,6 +24,7 @@ const targetGroupsRoutes = require('./routes/target-groups/target-groups');
 const deepDiveRoutes = require('./routes/deepdives/deepdives');
 const bestPracticesRoutes = require('./routes/best-practices/best-practices');
 const benchmarksRoutes = require('./routes/benchmarks/benchmarks');
+const implementationsRoutes = require('./routes/implementations/implementations');
 const uploadRoutes = require('./routes/upload/upload');
 const authenticateJWT = require('./middlewares/authenticate');
 const path = require('path');
@@ -75,6 +76,7 @@ app.use('/target-groups', targetGroupsRoutes)
 app.use('/deepdives', deepDiveRoutes);
 app.use('/best-practices', bestPracticesRoutes);
 app.use('/benchmarks', benchmarksRoutes);
+app.use('/implementations', implementationsRoutes);
 app.use('/upload', uploadRoutes);
 
 app.get('/protected', authenticateJWT, (req, res) => {
