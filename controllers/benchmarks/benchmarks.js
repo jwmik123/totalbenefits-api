@@ -153,4 +153,21 @@ const listBenchMarkCompanies = async (req, res) => {
     }
 };
 
-module.exports = { listBenchmarkOptions, listBenchmarksByBenefit, createBenchmark, updateBenchmark, getBenchmark, listBenchMarkCompanies };
+const deleteBenchmark = async (req, res) => {
+    const id = req.params.id;
+    try {
+        const oldRow = await dbQuery('SELECT benefit_id FROM ns_benchmarks WHERE id = ? LIMIT 1', [id]);
+        if (oldRow.length === 0) {
+            return res.status(404).json({ message: 'Benchmark niet gevonden' });
+        }
+        const benefitId = oldRow[0].benefit_id;
+        await dbQuery('DELETE FROM ns_benchmarks WHERE id = ?', [id]);
+        await invalidateSchemaAndInsights(benefitId);
+        return res.json({ message: 'Benchmark succesvol verwijderd' });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: 'Database query error' });
+    }
+};
+
+module.exports = { listBenchmarkOptions, listBenchmarksByBenefit, createBenchmark, updateBenchmark, getBenchmark, listBenchMarkCompanies, deleteBenchmark };
