@@ -29,7 +29,12 @@ const listImplementations = async (req, res) => {
         if (impls.length > 0) {
             const ids = impls.map(r => r.id);
             codes = await dbQuery(
-                `SELECT * FROM ns_benefit_implementation_codes WHERE implementation_id IN (${ids.map(() => '?').join(',')}) ORDER BY sort_order ASC`,
+                `SELECT ic.implementation_id, sc.id, sc.code, sc.sector_name, ic.sort_order
+                 FROM ns_benefit_implementation_codes ic
+                 JOIN ns_administration_sector_codes sc ON ic.sector_code_id = sc.id
+                 WHERE ic.implementation_id IN (${ids.map(() => '?').join(',')})
+                   AND ic.sector_code_id IS NOT NULL
+                 ORDER BY ic.sort_order ASC`,
                 ids
             );
         }
@@ -63,6 +68,18 @@ const updateMode = async (req, res) => {
     }
 };
 
+const upsertSectorCode = async (conn, companyId, code, sectorName) => {
+    const [result] = await conn.query(
+        `INSERT INTO ns_administration_sector_codes (administration_id, code, sector_name)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           id = LAST_INSERT_ID(id),
+           sector_name = COALESCE(VALUES(sector_name), sector_name)`,
+        [companyId, code, sectorName ?? null]
+    );
+    return result.insertId;
+};
+
 const createImplementation = async (req, res) => {
     const { title = null, implementation = null, codes = [] } = req.body;
     const benefitId = req.benefitId;
@@ -70,6 +87,9 @@ const createImplementation = async (req, res) => {
     const conn = await db.getConnection();
     try {
         await conn.beginTransaction();
+
+        const [[benefit]] = await conn.query('SELECT company FROM ns_benefits WHERE id = ?', [benefitId]);
+        const companyId = benefit.company;
 
         const [[maxRow]] = await conn.query(
             'SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM ns_benefit_implementations WHERE benefit_id = ?',
@@ -86,18 +106,19 @@ const createImplementation = async (req, res) => {
         const insertedCodes = [];
         for (let i = 0; i < codes.length; i++) {
             const { code, sectorName = null } = codes[i];
-            const [codeResult] = await conn.query(
-                'INSERT INTO ns_benefit_implementation_codes (implementation_id, code, sector_name, sort_order) VALUES (?, ?, ?, ?)',
-                [implId, code, sectorName, i]
+            const sectorCodeId = await upsertSectorCode(conn, companyId, code, sectorName);
+            await conn.query(
+                'INSERT INTO ns_benefit_implementation_codes (implementation_id, sector_code_id, code, sort_order) VALUES (?, ?, ?, ?)',
+                [implId, sectorCodeId, code, i]
             );
-            insertedCodes.push({ id: codeResult.insertId, code, sectorName });
+            insertedCodes.push({ id: sectorCodeId, code, sector_name: sectorName });
         }
 
         await conn.commit();
 
         return res.status(201).json(mapImpl(
             { id: implId, benefit_id: benefitId, title, implementation, sort_order: sortOrder },
-            insertedCodes.map(c => ({ id: c.id, code: c.code, sector_name: c.sectorName }))
+            insertedCodes
         ));
     } catch (err) {
         await conn.rollback();
@@ -135,22 +156,28 @@ const updateImplementation = async (req, res) => {
 
         let finalCodes;
         if (codes !== undefined) {
-            await conn.query(
-                'DELETE FROM ns_benefit_implementation_codes WHERE implementation_id = ?',
-                [id]
-            );
+            const [[benefit]] = await conn.query('SELECT company FROM ns_benefits WHERE id = ?', [existing.benefit_id]);
+            const companyId = benefit.company;
+
+            await conn.query('DELETE FROM ns_benefit_implementation_codes WHERE implementation_id = ?', [id]);
+
             finalCodes = [];
             for (let i = 0; i < codes.length; i++) {
                 const { code, sectorName = null } = codes[i];
-                const [codeResult] = await conn.query(
-                    'INSERT INTO ns_benefit_implementation_codes (implementation_id, code, sector_name, sort_order) VALUES (?, ?, ?, ?)',
-                    [id, code, sectorName, i]
+                const sectorCodeId = await upsertSectorCode(conn, companyId, code, sectorName);
+                await conn.query(
+                    'INSERT INTO ns_benefit_implementation_codes (implementation_id, sector_code_id, code, sort_order) VALUES (?, ?, ?, ?)',
+                    [id, sectorCodeId, code, i]
                 );
-                finalCodes.push({ id: codeResult.insertId, code, sector_name: sectorName });
+                finalCodes.push({ id: sectorCodeId, code, sector_name: sectorName });
             }
         } else {
             const [rows] = await conn.query(
-                'SELECT * FROM ns_benefit_implementation_codes WHERE implementation_id = ? ORDER BY sort_order ASC',
+                `SELECT ic.implementation_id, sc.id, sc.code, sc.sector_name, ic.sort_order
+                 FROM ns_benefit_implementation_codes ic
+                 JOIN ns_administration_sector_codes sc ON ic.sector_code_id = sc.id
+                 WHERE ic.implementation_id = ? AND ic.sector_code_id IS NOT NULL
+                 ORDER BY ic.sort_order ASC`,
                 [id]
             );
             finalCodes = rows;
@@ -186,4 +213,25 @@ const deleteImplementation = async (req, res) => {
     }
 };
 
-module.exports = { listImplementations, updateMode, createImplementation, updateImplementation, deleteImplementation };
+const getSectorCodes = async (req, res) => {
+    const administrationId = req.administrationId;
+    try {
+        const codes = await dbQuery(
+            'SELECT id, code, sector_name FROM ns_administration_sector_codes WHERE administration_id = ? ORDER BY code ASC',
+            [administrationId]
+        );
+        return res.json({
+            administrationId,
+            sectorCodes: codes.map(c => ({
+                id: c.id,
+                code: c.code,
+                sectorName: c.sector_name,
+            })),
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: 'Database query error' });
+    }
+};
+
+module.exports = { listImplementations, updateMode, createImplementation, updateImplementation, deleteImplementation, getSectorCodes };

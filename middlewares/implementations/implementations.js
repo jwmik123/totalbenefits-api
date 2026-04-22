@@ -89,4 +89,13 @@ const validateImplBody = (req, res, next) => {
     next();
 };
 
-module.exports = { requireAdmin, validateBenefitId, validateMode, validateImplId, validateImplBody };
+const validateSectorCodesQuery = (req, res, next) => {
+    const id = parseInt(req.query.administrationId, 10);
+    if (!id || id <= 0) {
+        return res.status(400).json({ error: 'administrationId is verplicht en moet een positief getal zijn' });
+    }
+    req.administrationId = id;
+    next();
+};
+
+module.exports = { requireAdmin, validateBenefitId, validateMode, validateImplId, validateImplBody, validateSectorCodesQuery };
