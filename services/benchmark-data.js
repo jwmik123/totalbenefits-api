@@ -149,6 +149,24 @@ const invalidateCompanyInsights = async (companyId) => {
     );
 };
 
+const invalidateInsightForCompanyBenefit = async (benefitId, companyId) => {
+    return dbQuery(
+        'UPDATE ns_benefit_benchmark_insights SET expires_at = NOW() WHERE benefit_id = ? AND company_id = ?',
+        [benefitId, companyId]
+    );
+};
+
+const invalidateSchemaAndInsights = async (benefitId) => {
+    await dbQuery(
+        'DELETE FROM ns_benefit_parameter_schemas WHERE benefit_id = ?',
+        [benefitId]
+    );
+    await dbQuery(
+        'UPDATE ns_benefit_benchmark_insights SET expires_at = NOW() WHERE benefit_id = ?',
+        [benefitId]
+    );
+};
+
 const resolveBdBenefitId = async (nsBenefitId) => {
     const results = await dbQuery(
         'SELECT linked_benefit FROM ns_benefits WHERE id = ?',
@@ -170,5 +188,7 @@ module.exports = {
     saveInsight,
     invalidateInsights,
     invalidateCompanyInsights,
+    invalidateInsightForCompanyBenefit,
+    invalidateSchemaAndInsights,
     resolveBdBenefitId,
 };

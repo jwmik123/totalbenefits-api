@@ -9,25 +9,33 @@ const main = async () => {
     const [,, benefitArg, companyArg] = process.argv;
 
     if (!benefitArg || !companyArg || isNaN(Number(benefitArg)) || isNaN(Number(companyArg))) {
-        console.error('Usage: node scripts/test-benchmark-ai.js <benefitId> <companyId>');
+        console.error('Usage: node scripts/test-benchmark-ai.js <nsBenefitId> <companyId>');
         console.error('Both args are required and must be numeric.');
+        console.error('nsBenefitId = ns_benefits.id (the client benefit row)');
         process.exit(1);
     }
 
-    const benefitId = Number(benefitArg);
+    const nsBenefitId = Number(benefitArg);
     const companyId = Number(companyArg);
 
     // ── Prerequisites ─────────────────────────────────────────────────────────
 
-    const benefit = await benchmarkData.getBenefitById(benefitId);
+    const bdBenefitId = await benchmarkData.resolveBdBenefitId(nsBenefitId);
+    if (bdBenefitId == null) {
+        console.error(`ns_benefit id=${nsBenefitId} has no linked_benefit (ns_bd_benefits). Is it linked?`);
+        process.exit(1);
+    }
+    console.log(`Resolved ns_benefit ${nsBenefitId} → bd_benefit ${bdBenefitId}`);
+
+    const benefit = await benchmarkData.getBenefitById(bdBenefitId);
     if (!benefit) {
-        console.error(`Benefit not found: id=${benefitId}`);
+        console.error(`Benefit not found: id=${bdBenefitId}`);
         process.exit(1);
     }
 
-    const benchmarks = await benchmarkData.getBenchmarksForBenefit(benefitId);
+    const benchmarks = await benchmarkData.getBenchmarksForBenefit(bdBenefitId);
     if (benchmarks.length === 0) {
-        console.error(`No active benchmarks found for benefit ${benefitId}`);
+        console.error(`No active benchmarks found for benefit ${bdBenefitId}`);
         process.exit(1);
     }
 
@@ -117,8 +125,45 @@ const main = async () => {
     console.log(`  branche_name:  ${clientProfile.branche_name}`);
     console.log(`  employee_count: ${clientProfile.employee_count}`);
 
+    // Fetch client's own implementation text (mirrors controller logic)
+    let clientImplementation = null;
+    const benefitMeta = await dbQuery(
+        'SELECT implementation_mode, implementation FROM ns_benefits WHERE id = ? LIMIT 1',
+        [nsBenefitId]
+    );
+    if (benefitMeta.length > 0) {
+        const mode = benefitMeta[0].implementation_mode;
+        const legacyText = benefitMeta[0].implementation;
+        const implRows = await dbQuery(
+            'SELECT title, implementation FROM ns_benefit_implementations WHERE benefit_id = ? ORDER BY sort_order ASC, id ASC',
+            [nsBenefitId]
+        );
+        if (implRows.length > 0) {
+            if (mode === 'multiple') {
+                clientImplementation = implRows
+                    .map((r) => {
+                        const title = r.title ? r.title.trim() : '';
+                        const body = r.implementation ? r.implementation.trim() : '';
+                        if (title && body) return `- ${title}: ${body}`;
+                        return `- ${body || title}`;
+                    })
+                    .filter((line) => line !== '- ')
+                    .join('\n');
+            } else {
+                clientImplementation = implRows
+                    .map((r) => (r.implementation || '').trim())
+                    .filter(Boolean)
+                    .join('\n\n');
+            }
+        } else if (legacyText && legacyText.trim().length > 0) {
+            clientImplementation = legacyText.trim();
+        }
+    }
+    console.log('\nClient implementation:');
+    console.log(clientImplementation ?? '(not set)');
+
     console.log('\nCalling generateInsight...');
-    const insight = await benchmarkAI.generateInsight(benefit, clientProfile, aggregates, benchmarks.length);
+    const insight = await benchmarkAI.generateInsight(benefit, clientProfile, clientImplementation, aggregates, benchmarks.length);
     console.log('\nInsight text:');
     console.log(insight);
 };

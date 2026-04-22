@@ -1,4 +1,5 @@
 const { dbQuery } = require('../../helpers/helper');
+const { invalidateSchemaAndInsights } = require('../../services/benchmark-data');
 
 const dotenv = require('dotenv');
 dotenv.config();
@@ -384,6 +385,12 @@ const updateBenefit = async (req, res) => {
       
       	const { uuid } = req.postData;
 
+        const existingRows = await dbQuery(
+            'SELECT id, title, introduction FROM ns_bd_benefits WHERE uuid = ? LIMIT 1',
+            [uuid]
+        );
+        const existingBenefit = existingRows[0] || null;
+
         const result = await dbQuery(
             `UPDATE ns_bd_benefits SET
                 title = ?,
@@ -449,6 +456,14 @@ const updateBenefit = async (req, res) => {
                 uuid
             ]
         );
+        if (existingBenefit) {
+            const titleChanged = existingBenefit.title !== title;
+            const introChanged = existingBenefit.introduction !== introduction;
+            if (titleChanged || introChanged) {
+                await invalidateSchemaAndInsights(existingBenefit.id);
+            }
+        }
+
         return res.json({ message: 'Benefit updated successfully', result });
     } catch (err) {
         console.error(err.response?.data || err.message);

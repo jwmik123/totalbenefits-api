@@ -1,6 +1,10 @@
 const Anthropic = require('@anthropic-ai/sdk');
 
-const MODEL = 'claude-haiku-4-5-20251001';
+const MODELS = {
+    EXTRACTION: 'claude-haiku-4-5',   // extractParams
+    REASONING:  'claude-sonnet-4-6',  // generateSchema, generateInsight
+};
+
 const DEFAULT_MAX_TOKENS = 2048;
 
 let client = null;
@@ -16,13 +20,26 @@ function getClient() {
 }
 
 const callClaudeText = async (prompt, options = {}) => {
-    const { maxTokens = DEFAULT_MAX_TOKENS, system } = options;
+    const { maxTokens = DEFAULT_MAX_TOKENS, system, model = MODELS.REASONING } = options;
+
     const params = {
-        model: MODEL,
+        model,
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }],
     };
-    if (system) params.system = system;
+
+    if (system) {
+        // Structured system with cache_control so the HR specialist persona
+        // gets cached across calls (5-min ephemeral TTL).
+        params.system = [
+            {
+                type: 'text',
+                text: system,
+                cache_control: { type: 'ephemeral' },
+            },
+        ];
+    }
+
     const response = await getClient().messages.create(params);
     return response.content[0].text;
 };
@@ -33,4 +50,4 @@ const callClaudeJSON = async (prompt, options = {}) => {
     return JSON.parse(cleaned);
 };
 
-module.exports = { callClaudeText, callClaudeJSON };
+module.exports = { callClaudeText, callClaudeJSON, MODELS };
