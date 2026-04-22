@@ -151,13 +151,19 @@ Marktdata van andere bedrijven (gebaseerd op ${observationCount} observaties):
 ${aggregatesFormatted}
 
 Taak:
-- Contrasteer de huidige implementatie bij ${clientProfile.name} met wat andere bedrijven doen volgens de marktdata.
+- Contrasteer de huidige implementatie bij ${clientProfile.name} met wat andere bedrijven doen.
 - Benoem concreet waar ${clientProfile.name} boven, onder, of gelijk aan het marktgemiddelde zit voor de getoonde parameters.
-- Als de implementatie bij ${clientProfile.name} niet is ingevuld, beschrijf dan uitsluitend wat de marktdata laat zien zonder conclusies over ${clientProfile.name}.
+- Als de implementatie bij ${clientProfile.name} niet is ingevuld, beschrijf dan uitsluitend wat de marktdata laat zien.
+
+Stijl:
+- Schrijf als een lopend verhaal, geen feitenopsomming. De zinnen sluiten logisch op elkaar aan.
+- Gebruik verbindingswoorden waar dat natuurlijk is: "waar", "terwijl", "in tegenstelling tot", "opvallend is dat", "dit betekent dat".
+- Je mag framing gebruiken om de betekenis van een cijfer te duiden ("opvallend", "in lijn met", "afwijkend van"), maar geef geen advies of aanbevelingen.
+- Variatie in zinsbouw. Vermijd dat elke zin op dezelfde manier begint.
 
 Regels:
 - Beschrijf uitsluitend feiten uit de data hierboven. Geen externe kennis.
-- Geen aanbevelingen of adviezen. Geen prescriptieve taal.
+- Geen aanbevelingen, adviezen of suggesties. Geen prescriptieve taal ("overweeg", "het advies luidt", "zou kunnen", "is verstandig", "implementeer").
 - Noem concrete getallen uit de aggregates waar relevant.
 - Schrijf lopende tekst. Geen opsomming. Geen markdown. Geen aanhef.`;
 
