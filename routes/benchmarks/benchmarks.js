@@ -17,8 +17,7 @@ const {
     getBenchmark,
     listBenchmarksByBenefit,
     listBenchMarkCompanies,
-    updateBenchmarkOption,
-    deleteBenchmarkOption
+    deleteBenchmark
 } = require('../../controllers/benchmarks/benchmarks');
 const { viewBenchmark, regenerateInsight } = require('../../controllers/benchmarks/benchmark-view');
 const { validateBenchmarkViewParams } = require('../../middlewares/benchmarks/benchmark-view');
@@ -35,6 +34,6 @@ router.get('/view/:nsBenefitId', authenticateJWT, validateBenchmarkViewParams, v
 router.post('/insight/:nsBenefitId', authenticateJWT, validateBenchmarkViewParams, regenerateInsight);
 router.get('/:id', authenticateJWT, validateBenchmarkOptions, getBenchmark);
 router.put('/:id', authenticateJWT, validateBenchmarkCreation, updateBenchmark);
-//router.delete('/:id', authenticateJWT, validateBenchmarkOptions, deleteBenchmarkOption);
+router.delete('/:id', authenticateJWT, deleteBenchmark);
 
 module.exports = router;

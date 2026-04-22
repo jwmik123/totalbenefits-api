@@ -1,5 +1,6 @@
 const { dbQuery } = require('../../helpers/helper');
 const { logError } = require('../../helpers/errorLogger');
+const { invalidateInsightForCompanyBenefit } = require('../../services/benchmark-data');
 
 //3rd party
 const fs = require('fs');
@@ -395,6 +396,7 @@ const updateBenefit = async (req, res) => {
         var sqlQuery = `UPDATE ns_benefits SET implementation = ? WHERE id = ?`;
         var values = [data.implementation, benefit.id];
         var logDescription = `Gewijzigd (Implementatie) door ${user}`;
+        var invalidateImplementationInsight = true;
     }
     if (req.route.path === '/:uuid/strategic') {
         var sqlQuery = `UPDATE ns_benefits SET purpose = ?, organizational_themes = ?, core_values = ? WHERE id = ?`;
@@ -409,6 +411,9 @@ const updateBenefit = async (req, res) => {
     try {
         const result = await dbQuery(sqlQuery, values);
         await dbQuery('INSERT INTO ns_benefit_logs (benefit, description, role) VALUES (?, ?, ?)', [benefit.id, logDescription, userRole === 1 ? 'super_admin' : 'user']);
+        if (invalidateImplementationInsight) {
+            await invalidateInsightForCompanyBenefit(benefit.id, req.administrationId);
+        }
         return res.json({ message: 'Arbeidsvoorwaarde bijgewerkt' });
     } catch (error) {
         console.log(error);

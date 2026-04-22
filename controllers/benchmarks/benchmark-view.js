@@ -2,6 +2,19 @@ const benchmarkData = require('../../services/benchmark-data');
 const benchmarkAI = require('../../services/benchmark-ai');
 const { dbQuery } = require('../../helpers/helper');
 
+// Excludes observations that describe only statutory minima (wettelijk).
+// bovenwettelijk is always kept — that's exactly what we want to benchmark.
+const isBenchmarkableObservation = (row) => {
+    if (row.statutory_expansion === false) return false;
+
+    const text = row.description || '';
+    const isBovenwettelijk = /bovenwettelijk/i.test(text);
+    const isWettelijkOnly = /\bwettelijk\b/i.test(text) && !isBovenwettelijk;
+    if (isWettelijkOnly) return false;
+
+    return true;
+};
+
 const FTE_BANDS = [
     { max: 50,       label: '< 50 FTE' },
     { max: 100,      label: '50–100 FTE' },
@@ -153,12 +166,13 @@ const viewBenchmark = async (req, res) => {
         const bdBenefitId = await benchmarkData.resolveBdBenefitId(req.nsBenefitId);
         if (bdBenefitId == null) return res.json(EMPTY_RESPONSE);
 
-        const [benefit, benchmarks, clientProfile, schemaRow] = await Promise.all([
+        const [benefit, rawBenchmarks, clientProfile, schemaRow] = await Promise.all([
             benchmarkData.getBenefitById(bdBenefitId),
             benchmarkData.getBenchmarksForBenefit(bdBenefitId),
             benchmarkData.getClientProfile(req.administrationId),
             benchmarkData.getParameterSchema(bdBenefitId),
         ]);
+        const benchmarks = rawBenchmarks.filter(isBenchmarkableObservation);
 
         if (!benefit || benchmarks.length === 0) return res.json(EMPTY_RESPONSE);
         if (!clientProfile) return res.status(404).json({ message: 'Administratie niet gevonden' });
@@ -273,12 +287,13 @@ const regenerateInsight = async (req, res) => {
         const bdBenefitId = await benchmarkData.resolveBdBenefitId(req.nsBenefitId);
         if (bdBenefitId == null) return res.status(404).json({ message: 'Benefit niet gevonden' });
 
-        const [benefit, benchmarks, clientProfile, schemaRow] = await Promise.all([
+        const [benefit, rawBenchmarks, clientProfile, schemaRow] = await Promise.all([
             benchmarkData.getBenefitById(bdBenefitId),
             benchmarkData.getBenchmarksForBenefit(bdBenefitId),
             benchmarkData.getClientProfile(req.administrationId),
             benchmarkData.getParameterSchema(bdBenefitId),
         ]);
+        const benchmarks = rawBenchmarks.filter(isBenchmarkableObservation);
 
         if (!benefit || benchmarks.length === 0 || !schemaRow || !clientProfile) {
             return res.status(400).json({ message: 'Onvoldoende data voor inzicht' });
@@ -300,6 +315,44 @@ const regenerateInsight = async (req, res) => {
         const aggregates = computeAggregates(schemaRow.parameters, usableMap);
         const clientBranchName = await getBranchName(clientProfile.branche);
 
+        const benefitMeta = await dbQuery(
+            'SELECT implementation_mode, implementation FROM ns_benefits WHERE id = ? LIMIT 1',
+            [req.nsBenefitId]
+        );
+
+        let clientImplementation = null;
+
+        if (benefitMeta.length > 0) {
+            const mode = benefitMeta[0].implementation_mode;
+            const legacyText = benefitMeta[0].implementation;
+
+            const implRows = await dbQuery(
+                'SELECT title, implementation FROM ns_benefit_implementations WHERE benefit_id = ? ORDER BY sort_order ASC, id ASC',
+                [req.nsBenefitId]
+            );
+
+            if (implRows.length > 0) {
+                if (mode === 'multiple') {
+                    clientImplementation = implRows
+                        .map((r) => {
+                            const title = r.title ? r.title.trim() : '';
+                            const body = r.implementation ? r.implementation.trim() : '';
+                            if (title && body) return `- ${title}: ${body}`;
+                            return `- ${body || title}`;
+                        })
+                        .filter((line) => line !== '- ')
+                        .join('\n');
+                } else {
+                    clientImplementation = implRows
+                        .map((r) => (r.implementation || '').trim())
+                        .filter(Boolean)
+                        .join('\n\n');
+                }
+            } else if (legacyText && legacyText.trim().length > 0) {
+                clientImplementation = legacyText.trim();
+            }
+        }
+
         const insightText = await benchmarkAI.generateInsight(
             benefit,
             {
@@ -307,6 +360,7 @@ const regenerateInsight = async (req, res) => {
                 branche_name: clientBranchName,
                 employee_count: clientProfile.employee_count,
             },
+            clientImplementation,
             aggregates,
             usableBenchmarks.length
         );

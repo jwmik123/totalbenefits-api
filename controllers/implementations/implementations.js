@@ -1,5 +1,6 @@
 const { dbQuery } = require('../../helpers/helper');
 const db = require('../../models/db');
+const { invalidateInsightForCompanyBenefit } = require('../../services/benchmark-data');
 
 const mapImpl = (row, codes) => ({
     id: row.id,
@@ -60,7 +61,15 @@ const updateMode = async (req, res) => {
     const { mode } = req.body;
     const benefitId = req.benefitId;
     try {
+        const rows = await dbQuery('SELECT company FROM ns_benefits WHERE id = ? LIMIT 1', [benefitId]);
+        const companyId = rows.length > 0 ? rows[0].company : null;
+
         await dbQuery('UPDATE ns_benefits SET implementation_mode = ? WHERE id = ?', [mode, benefitId]);
+
+        if (companyId != null) {
+            await invalidateInsightForCompanyBenefit(benefitId, companyId);
+        }
+
         return res.json({ benefitId, mode });
     } catch (err) {
         console.error(err);
@@ -116,6 +125,8 @@ const createImplementation = async (req, res) => {
 
         await conn.commit();
 
+        await invalidateInsightForCompanyBenefit(benefitId, companyId);
+
         return res.status(201).json(mapImpl(
             { id: implId, benefit_id: benefitId, title, implementation, sort_order: sortOrder },
             insertedCodes
@@ -146,6 +157,9 @@ const updateImplementation = async (req, res) => {
             return res.status(404).json({ error: 'Implementatie niet gevonden' });
         }
 
+        const [[benefitRow]] = await conn.query('SELECT company FROM ns_benefits WHERE id = ?', [existing.benefit_id]);
+        const companyId = benefitRow ? benefitRow.company : null;
+
         const newTitle = title !== undefined ? title : existing.title;
         const newImpl = implementation !== undefined ? implementation : existing.implementation;
 
@@ -156,9 +170,6 @@ const updateImplementation = async (req, res) => {
 
         let finalCodes;
         if (codes !== undefined) {
-            const [[benefit]] = await conn.query('SELECT company FROM ns_benefits WHERE id = ?', [existing.benefit_id]);
-            const companyId = benefit.company;
-
             await conn.query('DELETE FROM ns_benefit_implementation_codes WHERE implementation_id = ?', [id]);
 
             finalCodes = [];
@@ -185,6 +196,10 @@ const updateImplementation = async (req, res) => {
 
         await conn.commit();
 
+        if (companyId != null) {
+            await invalidateInsightForCompanyBenefit(existing.benefit_id, companyId);
+        }
+
         return res.json(mapImpl(
             { id, benefit_id: existing.benefit_id, title: newTitle, implementation: newImpl, sort_order: existing.sort_order },
             finalCodes
@@ -201,11 +216,24 @@ const updateImplementation = async (req, res) => {
 const deleteImplementation = async (req, res) => {
     const id = parseInt(req.params.id, 10);
     try {
-        const rows = await dbQuery('SELECT id FROM ns_benefit_implementations WHERE id = ?', [id]);
+        const rows = await dbQuery(
+            `SELECT i.benefit_id, b.company
+             FROM ns_benefit_implementations i
+             INNER JOIN ns_benefits b ON b.id = i.benefit_id
+             WHERE i.id = ? LIMIT 1`,
+            [id]
+        );
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Implementatie niet gevonden' });
         }
+        const { benefit_id: benefitId, company: companyId } = rows[0];
+
         await dbQuery('DELETE FROM ns_benefit_implementations WHERE id = ?', [id]);
+
+        if (benefitId != null && companyId != null) {
+            await invalidateInsightForCompanyBenefit(benefitId, companyId);
+        }
+
         return res.status(204).send();
     } catch (err) {
         console.error(err);

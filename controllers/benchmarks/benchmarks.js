@@ -1,5 +1,5 @@
 const { dbQuery } = require('../../helpers/helper');
-const { invalidateInsights } = require('../../services/benchmark-data');
+const { invalidateSchemaAndInsights } = require('../../services/benchmark-data');
 
 const listBenchmarkOptions = async (req, res) => {
     const sqlBranches = 'SELECT * FROM ns_branches';
@@ -69,7 +69,7 @@ const createBenchmark = async (req, res) => {
         const benchmarkSql = 'INSERT INTO ns_benchmarks (benchmark_company_id, source_of_truth_id, reliability, updated_at, benefit_id, target_group_id, legal_basis_id, statutory_expansion, description, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         const benchmarkValues = [companyId, source_of_truth_id, reliability, updated_at, benefit_id, target_group_id, legal_basis_id, statutory_expansion, description, active];
         const result = await dbQuery(benchmarkSql, benchmarkValues);
-        await invalidateInsights(benefit_id);
+        await invalidateSchemaAndInsights(benefit_id);
         return res.json({
             message: 'Benchmark succesvol aangemaakt',
             id: result.insertId
@@ -98,10 +98,17 @@ const updateBenchmark = async (req, res) => {
             await dbQuery(companySql, companyValues);
         }
 
+        const oldRow = await dbQuery('SELECT benefit_id FROM ns_benchmarks WHERE id = ? LIMIT 1', [id]);
+        const oldBenefitId = oldRow.length > 0 ? oldRow[0].benefit_id : null;
+
         const benchmarkSql = 'UPDATE ns_benchmarks SET benchmark_company_id = ?, source_of_truth_id = ?, reliability = ?, updated_at = ?, benefit_id = ?, target_group_id = ?, legal_basis_id = ?, statutory_expansion = ?, description = ?, active = ? WHERE id = ?';
         const benchmarkValues = [companyId, source_of_truth_id, reliability, updated_at, benefit_id, target_group_id, legal_basis_id, statutory_expansion, description, active, id];
         await dbQuery(benchmarkSql, benchmarkValues);
-        await invalidateInsights(benefit_id);
+
+        await invalidateSchemaAndInsights(benefit_id);
+        if (oldBenefitId != null && oldBenefitId !== benefit_id) {
+            await invalidateSchemaAndInsights(oldBenefitId);
+        }
         return res.json({ message: 'Benchmark succesvol bijgewerkt' });
     } catch (err) {
         console.error(err);
@@ -146,4 +153,21 @@ const listBenchMarkCompanies = async (req, res) => {
     }
 };
 
-module.exports = { listBenchmarkOptions, listBenchmarksByBenefit, createBenchmark, updateBenchmark, getBenchmark, listBenchMarkCompanies };
+const deleteBenchmark = async (req, res) => {
+    const id = req.params.id;
+    try {
+        const oldRow = await dbQuery('SELECT benefit_id FROM ns_benchmarks WHERE id = ? LIMIT 1', [id]);
+        if (oldRow.length === 0) {
+            return res.status(404).json({ message: 'Benchmark niet gevonden' });
+        }
+        const benefitId = oldRow[0].benefit_id;
+        await dbQuery('DELETE FROM ns_benchmarks WHERE id = ?', [id]);
+        await invalidateSchemaAndInsights(benefitId);
+        return res.json({ message: 'Benchmark succesvol verwijderd' });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: 'Database query error' });
+    }
+};
+
+module.exports = { listBenchmarkOptions, listBenchmarksByBenefit, createBenchmark, updateBenchmark, getBenchmark, listBenchMarkCompanies, deleteBenchmark };
