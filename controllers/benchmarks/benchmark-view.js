@@ -5,8 +5,7 @@ const { dbQuery } = require('../../helpers/helper');
 // Excludes observations that describe only statutory minima (wettelijk).
 // bovenwettelijk is always kept — that's exactly what we want to benchmark.
 const isBenchmarkableObservation = (row) => {
-    if (row.statutory_expansion === false) return false;
-    if (row.statutory_expansion === true) return true;
+    if (row.statutory_expansion != null) return !!row.statutory_expansion;
 
     // statutory_expansion is null — use description text as fallback heuristic
     const text = row.description || '';
