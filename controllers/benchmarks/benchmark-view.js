@@ -95,9 +95,10 @@ function computeSimilarity(observation, clientProfile, connectedBranches) {
     return { score, matched_on };
 }
 
-function getMatchLabel(score) {
+function getMatchLabel(score, matchedOn) {
     if (score >= 5) return 'Sterke match';
     if (score >= 3) return 'Gedeeltelijke match';
+    if (matchedOn && matchedOn.includes('branch_connected')) return 'Gedeeltelijke match';
     return 'Zwakke match';
 }
 
@@ -264,7 +265,7 @@ const viewBenchmark = async (req, res) => {
                 branch: b.branch_name,
                 size_band: getFteBand(b.employee_count),
                 similarity_score: sim.score,
-                match_label: getMatchLabel(sim.score),
+                match_label: getMatchLabel(sim.score, sim.matched_on),
                 params,
                 _rawScore: sim.score,
                 _matchedOn: sim.matched_on,
