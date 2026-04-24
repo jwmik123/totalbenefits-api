@@ -1,6 +1,6 @@
 const { callClaudeText, callClaudeJSON, MODELS } = require('../helpers/claude');
 
-const REQUIRED_SCHEMA_KEYS = ['key', 'label', 'type', 'unit', 'show_in_kpi', 'show_in_table'];
+const REQUIRED_SCHEMA_KEYS = ['key', 'label', 'type', 'unit', 'unit_singular', 'show_in_kpi', 'show_in_table'];
 
 const HR_SPECIALIST_SYSTEM = `Je bent een senior HR-benchmarkspecialist voor het Total Benefits platform. Je analyseert Nederlandse arbeidsvoorwaarden ("benefits") en vergelijkt hoe bedrijven deze invullen.
 
@@ -58,7 +58,8 @@ Geef je antwoord terug als geldig JSON in dit exacte formaat, zonder markdown, z
       "key": "string (snake_case, Engels)",
       "label": "string (Nederlands, kort)",
       "type": "number" | "boolean" | "string",
-      "unit": "string of null",
+      "unit": "string of null (meervoud, bijv. \" maandsalarissen\", \"%\")",
+      "unit_singular": "string of null (enkelvoud, bijv. \" maandsalaris\", \"%\"; zelfde als unit als er geen verschil is)",
       "show_in_kpi": boolean,
       "show_in_table": boolean
     }
@@ -127,8 +128,10 @@ const generateInsight = async (benefit, clientProfile, clientImplementation, agg
     const aggregatesFormatted = Object.entries(aggregates)
         .map(([, agg]) => {
             if ('avg' in agg) {
-                const unit = agg.unit || '';
-                return `- ${agg.label}: gemiddeld ${agg.avg}${unit}, range ${agg.min}${unit}–${agg.max}${unit}`;
+                const plural = agg.unit || '';
+                const singular = agg.unit_singular || plural;
+                const unitFor = (val) => val === 1 ? singular : plural;
+                return `- ${agg.label}: gemiddeld ${agg.avg}${unitFor(agg.avg)}, range ${agg.min}${unitFor(agg.min)}–${agg.max}${unitFor(agg.max)}`;
             }
             return `- ${agg.label}: ${agg.true_pct}% biedt dit`;
         })

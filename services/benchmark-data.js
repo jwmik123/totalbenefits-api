@@ -30,7 +30,8 @@ const getClientProfile = async (companyId) => {
         SELECT
             c.id,
             c.name,
-            COALESCE(c.branche, cp.branche) AS branche,
+            cp.branche AS profile_branche,
+            c.branche AS company_branche,
             c.subbranche,
             cp.employee_count
         FROM ns_companies c
@@ -38,7 +39,11 @@ const getClientProfile = async (companyId) => {
         WHERE c.id = ?
     `;
     const results = await dbQuery(sql, [companyId]);
-    return results[0] || null;
+    const row = results[0];
+    if (!row) return null;
+    let branche = row.profile_branche;
+    if (!branche && row.company_branche != null) branche = [row.company_branche];
+    return { ...row, branche };
 };
 
 const getParameterSchema = async (benefitId) => {
@@ -156,6 +161,24 @@ const invalidateInsightForCompanyBenefit = async (benefitId, companyId) => {
     );
 };
 
+const invalidateAllInsights = async () => {
+    await dbQuery('UPDATE ns_benefit_benchmark_insights SET expires_at = NOW()', []);
+};
+
+const getConnectedBranches = async (branchIds) => {
+    if (!branchIds || branchIds.length === 0) return [];
+    const placeholders = branchIds.map(() => '?').join(', ');
+    const rows = await dbQuery(
+        `SELECT DISTINCT m2.branch_id
+         FROM ns_branch_group_members m1
+         INNER JOIN ns_branch_group_members m2 ON m1.group_id = m2.group_id
+         WHERE m1.branch_id IN (${placeholders})
+           AND m2.branch_id NOT IN (${placeholders})`,
+        [...branchIds, ...branchIds]
+    );
+    return rows.map((r) => r.branch_id);
+};
+
 const invalidateSchemaAndInsights = async (benefitId) => {
     await dbQuery(
         'DELETE FROM ns_benefit_parameter_schemas WHERE benefit_id = ?',
@@ -187,8 +210,10 @@ module.exports = {
     getInsight,
     saveInsight,
     invalidateInsights,
+    invalidateAllInsights,
     invalidateCompanyInsights,
     invalidateInsightForCompanyBenefit,
     invalidateSchemaAndInsights,
+    getConnectedBranches,
     resolveBdBenefitId,
 };
