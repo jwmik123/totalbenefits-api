@@ -58,6 +58,7 @@ const listBenchmarksByBenefit = async (req, res) => {
 
 const createBenchmark = async (req, res) => {
     const { title, benchmark_company_id, branche_id, employee_count, organization_type_id, countries, has_cao, cao_id, source_of_truth_id, reliability, updated_at, benefit_id, target_group_id, legal_basis_id, statutory_expansion, description, active } = req.body;
+    console.log(`[benchmark:create] benefit_id=${benefit_id} statutory_expansion=${statutory_expansion} description_length=${(description || '').length}`);
     try {
         let companyId = benchmark_company_id;
         if (!companyId) {
@@ -65,17 +66,23 @@ const createBenchmark = async (req, res) => {
             const companyValues = [title, branche_id, employee_count, organization_type_id, JSON.stringify(countries), has_cao, cao_id];
             const companyResult = await dbQuery(companySql, companyValues);
             companyId = companyResult.insertId;
+            console.log(`[benchmark:create] new company created id=${companyId}`);
+        } else {
+            console.log(`[benchmark:create] using existing company id=${companyId}`);
         }
         const benchmarkSql = 'INSERT INTO ns_benchmarks (benchmark_company_id, source_of_truth_id, reliability, updated_at, benefit_id, target_group_id, legal_basis_id, statutory_expansion, description, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         const benchmarkValues = [companyId, source_of_truth_id, reliability, updated_at, benefit_id, target_group_id, legal_basis_id, statutory_expansion, description, active];
         const result = await dbQuery(benchmarkSql, benchmarkValues);
+        console.log(`[benchmark:create] inserted benchmark id=${result.insertId} benefit_id=${benefit_id}`);
+        console.log(`[benchmark:create] invalidating schema and insights for benefit_id=${benefit_id}`);
         await invalidateSchemaAndInsights(benefit_id);
+        console.log(`[benchmark:create] done`);
         return res.json({
             message: 'Benchmark succesvol aangemaakt',
             id: result.insertId
         });
     } catch (err) {
-        console.error(err);
+        console.error('[benchmark:create] error:', err);
         return res.status(500).json({ message: 'Database query error' });
     }
 };

@@ -173,8 +173,13 @@ const LABEL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 const viewBenchmark = async (req, res) => {
     try {
+        console.log(`[benchmark:view] nsBenefitId=${req.nsBenefitId} administrationId=${req.administrationId}`);
         const bdBenefitId = await benchmarkData.resolveBdBenefitId(req.nsBenefitId);
-        if (bdBenefitId == null) return res.json(EMPTY_RESPONSE);
+        console.log(`[benchmark:view] resolved bdBenefitId=${bdBenefitId}`);
+        if (bdBenefitId == null) {
+            console.log(`[benchmark:view] no linked_benefit → returning no_data`);
+            return res.json(EMPTY_RESPONSE);
+        }
 
         const [benefit, rawBenchmarks, clientProfile, schemaRow] = await Promise.all([
             benchmarkData.getBenefitById(bdBenefitId),
@@ -182,9 +187,22 @@ const viewBenchmark = async (req, res) => {
             benchmarkData.getClientProfile(req.administrationId),
             benchmarkData.getParameterSchema(bdBenefitId),
         ]);
-        const benchmarks = rawBenchmarks.filter(isBenchmarkableObservation);
+        console.log(`[benchmark:view] rawBenchmarks=${rawBenchmarks.length} benefit=${benefit ? benefit.title : 'NOT FOUND'} schema=${schemaRow ? 'cached' : 'MISSING'}`);
 
-        if (!benefit || benchmarks.length === 0) return res.json(EMPTY_RESPONSE);
+        const benchmarks = rawBenchmarks.filter(isBenchmarkableObservation);
+        const filtered = rawBenchmarks.length - benchmarks.length;
+        if (filtered > 0) {
+            console.log(`[benchmark:view] isBenchmarkableObservation filtered out ${filtered} benchmark(s):`);
+            rawBenchmarks.filter((b) => !isBenchmarkableObservation(b)).forEach((b) => {
+                console.log(`  → id=${b.id} statutory_expansion=${b.statutory_expansion} desc="${(b.description || '').slice(0, 80)}"`);
+            });
+        }
+        console.log(`[benchmark:view] benchmarkable count=${benchmarks.length}`);
+
+        if (!benefit || benchmarks.length === 0) {
+            console.log(`[benchmark:view] no benefit or no benchmarkable benchmarks → returning no_data`);
+            return res.json(EMPTY_RESPONSE);
+        }
         if (!clientProfile) return res.status(404).json({ message: 'Administratie niet gevonden' });
 
         const clientBranchName = await getBranchNames(clientProfile.branche);
@@ -195,31 +213,47 @@ const viewBenchmark = async (req, res) => {
         let schemaUpdatedAt;
 
         if (!schemaRow) {
+            console.log(`[benchmark:view] no schema cached → generating via AI`);
             const descriptions = benchmarks.map((b) => b.description).filter(Boolean);
             if (descriptions.length === 0) return res.json(EMPTY_RESPONSE);
             schema = await benchmarkAI.generateSchema(benefit, descriptions);
             await benchmarkData.saveParameterSchema(bdBenefitId, schema);
             schemaUpdatedAt = new Date();
+            console.log(`[benchmark:view] schema generated and saved, keys=${schema.map((s) => s.key).join(', ')}`);
         } else {
             schema = schemaRow.parameters;
             schemaUpdatedAt = schemaRow.updated_at;
+            console.log(`[benchmark:view] using cached schema updated_at=${schemaUpdatedAt} keys=${schema.map((s) => s.key).join(', ')}`);
         }
 
         const staleBenchmarks = await benchmarkData.getStaleBenchmarks(bdBenefitId, schemaUpdatedAt);
+        console.log(`[benchmark:view] stale benchmarks to extract=${staleBenchmarks.length} ids=[${staleBenchmarks.map((b) => b.id).join(', ')}]`);
         for (const benchmark of staleBenchmarks) {
+            console.log(`[benchmark:view] extracting params for benchmark id=${benchmark.id}`);
             const params = await benchmarkAI.extractParams(schema, benchmark.description || '');
+            console.log(`[benchmark:view] extracted id=${benchmark.id} params=${JSON.stringify(params)}`);
             await benchmarkData.saveExtractedParams(benchmark.id, bdBenefitId, params);
         }
 
         const extractedMap = await benchmarkData.getExtractedParams(benchmarks.map((b) => b.id));
+        console.log(`[benchmark:view] extractedMap size=${extractedMap.size} for benchmark ids=[${benchmarks.map((b) => b.id).join(', ')}]`);
 
         const usableBenchmarks = benchmarks.filter((b) => {
             const params = extractedMap.get(b.id);
-            if (!params) return false;
-            return Object.values(params).some((v) => v !== null && v !== undefined);
+            if (!params) {
+                console.log(`[benchmark:view] benchmark id=${b.id} has no extracted params → excluded`);
+                return false;
+            }
+            const hasValue = Object.values(params).some((v) => v !== null && v !== undefined);
+            if (!hasValue) console.log(`[benchmark:view] benchmark id=${b.id} all params null → excluded`);
+            return hasValue;
         });
+        console.log(`[benchmark:view] usable benchmarks=${usableBenchmarks.length}`);
 
-        if (usableBenchmarks.length === 0) return res.json(EMPTY_RESPONSE);
+        if (usableBenchmarks.length === 0) {
+            console.log(`[benchmark:view] no usable benchmarks → returning no_data`);
+            return res.json(EMPTY_RESPONSE);
+        }
 
         const peers = usableBenchmarks.map((b) => {
             const sim = computeSimilarity(b, clientProfile, connectedBranches);
