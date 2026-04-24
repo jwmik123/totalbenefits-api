@@ -34,6 +34,6 @@ router.get('/view/:nsBenefitId', authenticateJWT, validateBenchmarkViewParams, v
 router.post('/insight/:nsBenefitId', authenticateJWT, validateBenchmarkViewParams, regenerateInsight);
 router.get('/:id', authenticateJWT, validateBenchmarkOptions, getBenchmark);
 router.put('/:id', authenticateJWT, validateBenchmarkCreation, updateBenchmark);
-router.delete('/:id', authenticateJWT, deleteBenchmark);
+router.delete('/:id', authenticateJWT, validateBenchmarkOptions, deleteBenchmark);
 
 module.exports = router;

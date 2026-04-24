@@ -60,16 +60,22 @@ async function getBranchNames(brancheIds) {
     return rows.map(r => r.name);
 }
 
-function computeSimilarity(observation, clientProfile) {
+function computeSimilarity(observation, clientProfile, connectedBranches) {
     let score = 0;
     const matched_on = [];
 
     const clientBranches = Array.isArray(clientProfile.branche)
         ? clientProfile.branche.map(Number)
         : [];
-    if (observation.branche_id != null && clientBranches.includes(Number(observation.branche_id))) {
-        score += 3;
-        matched_on.push('branch');
+    if (observation.branche_id != null) {
+        const peerId = Number(observation.branche_id);
+        if (clientBranches.includes(peerId)) {
+            score += 3;
+            matched_on.push('branch');
+        } else if (connectedBranches.includes(peerId)) {
+            score += 1;
+            matched_on.push('branch_connected');
+        }
     }
 
     const obsBandIdx = getFteBandIndex(observation.employee_count);
@@ -182,6 +188,8 @@ const viewBenchmark = async (req, res) => {
         if (!clientProfile) return res.status(404).json({ message: 'Administratie niet gevonden' });
 
         const clientBranchName = await getBranchNames(clientProfile.branche);
+        const clientBranches = Array.isArray(clientProfile.branche) ? clientProfile.branche.map(Number) : [];
+        const connectedBranches = await benchmarkData.getConnectedBranches(clientBranches);
 
         let schema;
         let schemaUpdatedAt;
@@ -214,7 +222,7 @@ const viewBenchmark = async (req, res) => {
         if (usableBenchmarks.length === 0) return res.json(EMPTY_RESPONSE);
 
         const peers = usableBenchmarks.map((b) => {
-            const sim = computeSimilarity(b, clientProfile);
+            const sim = computeSimilarity(b, clientProfile, connectedBranches);
             const params = extractedMap.get(b.id) || {};
             return {
                 benchmark_id: b.id,
