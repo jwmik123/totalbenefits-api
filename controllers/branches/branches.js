@@ -1,7 +1,7 @@
 const { dbQuery } = require('../../helpers/helper');
 
 const listBranches = async (req, res) => {
-    var sqlQuery = 'SELECT * FROM ns_branches';
+    const sqlQuery = 'SELECT id, name, name AS title FROM ns_branches ORDER BY name ASC';
     try {
         const results = await dbQuery(sqlQuery);
         return res.json(results);
