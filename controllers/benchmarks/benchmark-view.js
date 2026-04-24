@@ -21,8 +21,11 @@ const FTE_BANDS = [
     { max: 200,      label: '100–200 FTE' },
     { max: 500,      label: '200–500 FTE' },
     { max: 1000,     label: '500–1.000 FTE' },
-    { max: Infinity, label: '1.000+ FTE' },
-];
+    { max: 5000,     label: '1.000–5.000 FTE' },
+    { max: 10000,    label: '5.000–10.000 FTE' },
+    { max: 15000,    label: '10.000–15.000 FTE' },
+    { max: 20000,    label: '15.000–20.000 FTE' },
+    { max: Infinity, label: '20.000+ FTE' },];
 
 const POSITION_THRESHOLD_PCT = 5;
 
@@ -50,21 +53,21 @@ function getFteBandIndex(employeeCount) {
     return FTE_BANDS.findIndex((b) => count <= b.max);
 }
 
-async function getBranchName(brancheId) {
-    if (brancheId == null) return null;
-    const rows = await dbQuery('SELECT name FROM ns_branches WHERE id = ?', [brancheId]);
-    return rows[0] ? rows[0].name : null;
+async function getBranchNames(brancheIds) {
+    if (!brancheIds || brancheIds.length === 0) return [];
+    const placeholders = brancheIds.map(() => '?').join(', ');
+    const rows = await dbQuery(`SELECT name FROM ns_branches WHERE id IN (${placeholders})`, brancheIds);
+    return rows.map(r => r.name);
 }
 
 function computeSimilarity(observation, clientProfile) {
     let score = 0;
     const matched_on = [];
 
-    if (
-        observation.branche_id != null &&
-        clientProfile.branche != null &&
-        Number(observation.branche_id) === Number(clientProfile.branche)
-    ) {
+    const clientBranches = Array.isArray(clientProfile.branche)
+        ? clientProfile.branche.map(Number)
+        : [];
+    if (observation.branche_id != null && clientBranches.includes(Number(observation.branche_id))) {
         score += 3;
         matched_on.push('branch');
     }
@@ -110,6 +113,7 @@ function computeAggregates(schema, extractedByBenchmarkId) {
                 min: Math.min(...values),
                 max: Math.max(...values),
                 unit: entry.unit || '',
+                unit_singular: entry.unit_singular || entry.unit || '',
                 label: entry.label,
             };
         } else if (entry.type === 'boolean') {
@@ -177,7 +181,7 @@ const viewBenchmark = async (req, res) => {
         if (!benefit || benchmarks.length === 0) return res.json(EMPTY_RESPONSE);
         if (!clientProfile) return res.status(404).json({ message: 'Administratie niet gevonden' });
 
-        const clientBranchName = await getBranchName(clientProfile.branche);
+        const clientBranchName = await getBranchNames(clientProfile.branche);
 
         let schema;
         let schemaUpdatedAt;
@@ -313,7 +317,7 @@ const regenerateInsight = async (req, res) => {
 
         const usableMap = new Map(usableBenchmarks.map((b) => [b.id, extractedMap.get(b.id)]));
         const aggregates = computeAggregates(schemaRow.parameters, usableMap);
-        const clientBranchName = await getBranchName(clientProfile.branche);
+        const clientBranchName = await getBranchNames(clientProfile.branche);
 
         const benefitMeta = await dbQuery(
             'SELECT implementation_mode, implementation FROM ns_benefits WHERE id = ? LIMIT 1',

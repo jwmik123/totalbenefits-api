@@ -210,7 +210,7 @@ const saveCompanyProfile = async (req, res) => {
     if (!founding_year) {
         return res.status(403).json({ error: 'Vul een oprichtingsjaar in' })
     }
-    if (!branche) {
+    if (!branche || !Array.isArray(branche) || branche.length === 0) {
         return res.status(403).json({ error: 'Vul een branche in' })
     }
     if (locations.length === 0) {
@@ -221,7 +221,7 @@ const saveCompanyProfile = async (req, res) => {
     }
 
     const sqlQuery = 'UPDATE ns_companyprofiles SET address = ?, founding_year = ?, branche = ?, locations = ?, entities = ?, works_council = ?, contact = ?, caos = ?, outside_cao = ?, communication_channels = ?, employee_count = ?, average_age = ?, employee_groups = ?, percentage_fulltime = ?, percentage_permanent_contracts = ?, flexible_contracts = ?, inflow_fte = ?, outflow_fte = ?, benefits_budget = ?, total_payroll = ?, recruitment_costs = ?, hr_channel = ?, languages = ?, openness = ?, communication_difficulty = ?, communication_questions = ?, communication_share = ?, strategy_core_values = ?, strategy_leading_values = ?, sdgs = ?, friction = ?, recruitment_problems = ?, engagement = ?, kpi_process = ?, kpi_absence = ? WHERE company = ?';
-    const values = [address, founding_year, branche, JSON.stringify(locations), JSON.stringify(entities), works_council, contact, JSON.stringify(caos), outside_cao, JSON.stringify(communication_channels), employee_count, average_age, JSON.stringify(employee_groups), percentage_fulltime, percentage_permanent_contracts, flexible_contracts, inflow_fte, outflow_fte, benefits_budget, total_payroll, recruitment_costs, hr_channel, JSON.stringify(languages), openness, communication_difficulty, communication_questions, communication_share, JSON.stringify(strategy_core_values), JSON.stringify(strategy_leading_values), JSON.stringify(sdgs), friction, recruitment_problems, engagement, kpi_process, kpi_absence, id];
+    const values = [address, founding_year, JSON.stringify(branche), JSON.stringify(locations), JSON.stringify(entities), works_council, contact, JSON.stringify(caos), outside_cao, JSON.stringify(communication_channels), employee_count, average_age, JSON.stringify(employee_groups), percentage_fulltime, percentage_permanent_contracts, flexible_contracts, inflow_fte, outflow_fte, benefits_budget, total_payroll, recruitment_costs, hr_channel, JSON.stringify(languages), openness, communication_difficulty, communication_questions, communication_share, JSON.stringify(strategy_core_values), JSON.stringify(strategy_leading_values), JSON.stringify(sdgs), friction, recruitment_problems, engagement, kpi_process, kpi_absence, id];
     try {
         const result = await dbQuery(sqlQuery, values);
         await invalidateCompanyInsights(id);

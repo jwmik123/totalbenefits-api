@@ -30,7 +30,8 @@ const getClientProfile = async (companyId) => {
         SELECT
             c.id,
             c.name,
-            COALESCE(c.branche, cp.branche) AS branche,
+            cp.branche AS profile_branche,
+            c.branche AS company_branche,
             c.subbranche,
             cp.employee_count
         FROM ns_companies c
@@ -38,7 +39,11 @@ const getClientProfile = async (companyId) => {
         WHERE c.id = ?
     `;
     const results = await dbQuery(sql, [companyId]);
-    return results[0] || null;
+    const row = results[0];
+    if (!row) return null;
+    let branche = row.profile_branche;
+    if (!branche && row.company_branche != null) branche = [row.company_branche];
+    return { ...row, branche };
 };
 
 const getParameterSchema = async (benefitId) => {
