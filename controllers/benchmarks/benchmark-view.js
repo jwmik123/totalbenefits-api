@@ -96,10 +96,10 @@ function computeSimilarity(observation, clientProfile, connectedBranches) {
 }
 
 function getMatchLabel(score, matchedOn) {
-    if (score >= 5) return 'Sterke match';
-    if (score >= 3) return 'Gedeeltelijke match';
-    if (matchedOn && matchedOn.includes('branch_connected')) return 'Gedeeltelijke match';
-    return 'Zwakke match';
+    if (score >= 5) return 'Hoog';
+    if (score >= 3) return 'Gemiddeld';
+    if (matchedOn && matchedOn.includes('branch_connected')) return 'Gemiddeld';
+    return 'Laag';
 }
 
 function computeAggregates(schema, extractedByBenchmarkId) {
