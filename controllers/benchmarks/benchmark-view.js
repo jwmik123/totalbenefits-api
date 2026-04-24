@@ -6,7 +6,9 @@ const { dbQuery } = require('../../helpers/helper');
 // bovenwettelijk is always kept — that's exactly what we want to benchmark.
 const isBenchmarkableObservation = (row) => {
     if (row.statutory_expansion === false) return false;
+    if (row.statutory_expansion === true) return true;
 
+    // statutory_expansion is null — use description text as fallback heuristic
     const text = row.description || '';
     const isBovenwettelijk = /bovenwettelijk/i.test(text);
     const isWettelijkOnly = /\bwettelijk\b/i.test(text) && !isBovenwettelijk;
